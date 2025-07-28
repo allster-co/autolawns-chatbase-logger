@@ -12,20 +12,51 @@ const supabase = createClient(
 )
 
 const CHATBASE_API_KEY = process.env.CHATBASE_API_KEY
-const CHATBASE_API_URL = 'https://api.chatbase.com/api/v1/conversations'
+const CHATBASE_API_URL = "https://www.chatbase.co/api/v1/get-conversations"
+const CHATBASE_BOT_ID = process.env.CHATBASE_BOT_ID
 
 const getConversations = async () => {
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-  const response = await axios.get(CHATBASE_API_URL, {
-    headers: {
-      Authorization: `Bearer ${CHATBASE_API_KEY}`
-    },
-    params: {
-      start_date: oneHourAgo
+  const now = new Date()
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
+
+  const startISO = oneHourAgo.toISOString()
+  const endISO = now.toISOString()
+
+  console.log(`[INFO] Fetching conversations from Chatbase`)
+  console.log(`[INFO] Time window: ${startISO} → ${endISO}`)
+  console.log(`[INFO] Bot ID: ${CHATBASE_BOT_ID}`)
+
+  try {
+    const response = await axios.get(CHATBASE_API_URL, {
+      headers: {
+        Authorization: `Bearer ${CHATBASE_API_KEY}`
+      },
+      params: {
+        bot_id: CHATBASE_BOT_ID,
+        start_date: startISO,
+        end_date: endISO
+      }
+    })
+
+    if (!Array.isArray(response.data)) {
+      console.error(`[ERROR] Unexpected response:`, response.data)
+      return []
     }
-  })
-  return response.data.conversations
+
+    console.log(`[INFO] Retrieved ${response.data.length} conversations`)
+    return response.data
+  } catch (error) {
+    console.error(`[ERROR] Chatbase request failed`)
+    if (error.response) {
+      console.error(`[ERROR] Status: ${error.response.status}`)
+      console.error(`[ERROR] Data:`, error.response.data)
+    } else {
+      console.error(`[ERROR]`, error.message)
+    }
+    return []
+  }
 }
+
 
 const summarize = (messages) =>
   messages.map((m) => m.content).join(' ').slice(0, 400)
