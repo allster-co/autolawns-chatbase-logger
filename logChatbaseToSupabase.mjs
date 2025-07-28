@@ -1,19 +1,20 @@
-// logChatbaseToSupabase.mjs
-
 import { createClient } from '@supabase/supabase-js'
 import axios from 'axios'
-import dotenv from 'dotenv'
 
-dotenv.config()
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
-
+// ✅ Read secrets from GitHub Actions env (do not use dotenv in Actions)
 const CHATBASE_API_KEY = process.env.CHATBASE_API_KEY
-const CHATBASE_API_URL = "https://www.chatbase.co/api/v1/get-conversations"
 const CHATBASE_BOT_ID = process.env.CHATBASE_BOT_ID
+const CHATBASE_API_URL = "https://www.chatbase.co/api/v1/get-conversations"
+
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+// ✅ Init Supabase
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+// ✅ Debug: Confirm env variables are loaded
+console.log(`[DEBUG] CHATBASE_BOT_ID from env: ${CHATBASE_BOT_ID}`)
+console.log(`[DEBUG] SUPABASE_URL from env: ${SUPABASE_URL?.slice(0, 30)}...`)
 
 const getConversations = async () => {
   const now = new Date()
@@ -39,7 +40,7 @@ const getConversations = async () => {
     })
 
     if (!Array.isArray(response.data)) {
-      console.error(`[ERROR] Unexpected response:`, response.data)
+      console.error(`[ERROR] Unexpected response from Chatbase`, response.data)
       return []
     }
 
@@ -57,7 +58,6 @@ const getConversations = async () => {
   }
 }
 
-
 const summarize = (messages) =>
   messages.map((m) => m.content).join(' ').slice(0, 400)
 
@@ -68,7 +68,10 @@ const run = async () => {
     const email = convo.metadata?.email
     const messages = convo.messages
 
-    if (!email || !messages?.length) continue
+    if (!email || !messages?.length) {
+      console.log(`[SKIP] Conversation missing email or messages`)
+      continue
+    }
 
     const { data: customer } = await supabase
       .from('customers')
@@ -80,18 +83,29 @@ const run = async () => {
       ? await supabase.from('leads').select('id').eq('email', email).maybeSingle()
       : { data: null }
 
-    if (!customer && !lead) continue
+    if (!customer && !lead) {
+      console.log(`[SKIP] Email not found in customers or leads: ${email}`)
+      continue
+    }
 
-    await supabase.from('interaction_logs').insert({
+    const summary = summarize(messages)
+
+    const { error } = await supabase.from('interaction_logs').insert({
       customer_id: customer?.id ?? null,
       lead_id: lead?.id ?? null,
       interaction_type: 'chatbase_summary',
-      summary: summarize(messages),
+      summary,
       created_at: new Date().toISOString()
     })
+
+    if (error) {
+      console.error(`[ERROR] Failed to insert interaction log for ${email}`, error)
+    } else {
+      console.log(`[✅] Logged interaction for ${email}`)
+    }
   }
 
-  console.log(`✅ Processed ${conversations.length} conversations.`)
+  console.log(`✅ Finished processing ${conversations.length} conversations`)
 }
 
 run().catch(console.error)
