@@ -1,14 +1,18 @@
+// logChatbaseToSupabase.mjs
+
 import { createClient } from '@supabase/supabase-js'
 import axios from 'axios'
-import 'dotenv/config'
+import dotenv from 'dotenv'
+
+dotenv.config()
 
 const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-const CHATBASE_API_KEY = process.env.CHATBASE_API_KEY!
-const CHATBASE_API_URL = "https://api.chatbase.com/api/v1/conversations"
+const CHATBASE_API_KEY = process.env.CHATBASE_API_KEY
+const CHATBASE_API_URL = 'https://api.chatbase.com/api/v1/conversations'
 
 const getConversations = async () => {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
@@ -23,8 +27,8 @@ const getConversations = async () => {
   return response.data.conversations
 }
 
-const summarize = (messages: any[]) =>
-  messages.map((m: any) => m.content).join(' ').slice(0, 400)
+const summarize = (messages) =>
+  messages.map((m) => m.content).join(' ').slice(0, 400)
 
 const run = async () => {
   const conversations = await getConversations()
@@ -41,11 +45,9 @@ const run = async () => {
       .eq('email', email)
       .maybeSingle()
 
-    const { data: lead } = !customer ? await supabase
-      .from('leads')
-      .select('id')
-      .eq('email', email)
-      .maybeSingle() : { data: null }
+    const { data: lead } = !customer
+      ? await supabase.from('leads').select('id').eq('email', email).maybeSingle()
+      : { data: null }
 
     if (!customer && !lead) continue
 
