@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import axios from 'axios'
 
-// ✅ Environment config (set in GitHub secrets)
+// ✅ Secrets from GitHub Actions env
 const CHATBASE_API_KEY = process.env.CHATBASE_API_KEY
 const CHATBASE_BOT_ID = process.env.CHATBASE_BOT_ID
 const CHATBASE_API_URL = "https://www.chatbase.co/api/v1/get-conversations"
@@ -17,15 +17,11 @@ console.log(`[DEBUG] CHATBASE_BOT_ID from env: ${CHATBASE_BOT_ID}`)
 console.log(`[DEBUG] SUPABASE_URL from env: ${SUPABASE_URL?.slice(0, 30)}...`)
 
 const getConversations = async () => {
-  const now = new Date()
-  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
-
-  const formatDate = (date) => date.toISOString().split('T')[0]
-  const startDate = formatDate(oneHourAgo)
-  const endDate = formatDate(now)
+  const today = new Date()
+  const dateOnly = today.toISOString().split('T')[0]
 
   console.log(`[INFO] Fetching conversations from Chatbase`)
-  console.log(`[INFO] Time window: ${startDate} → ${endDate}`)
+  console.log(`[INFO] Date: ${dateOnly}`)
   console.log(`[INFO] Bot ID: ${CHATBASE_BOT_ID}`)
 
   try {
@@ -36,8 +32,8 @@ const getConversations = async () => {
       },
       params: {
         chatbotId: CHATBASE_BOT_ID,
-        startDate,
-        endDate,
+        startDate: dateOnly,
+        endDate: dateOnly,
         page: 1,
         size: 50
       }
@@ -91,6 +87,19 @@ const run = async () => {
         continue
       }
 
+      // ✅ Deduplication check
+      const { data: existing } = await supabase
+        .from('interaction_logs')
+        .select('id')
+        .eq('chatbase_conversation_id', convo.id)
+        .maybeSingle()
+
+      if (existing) {
+        console.log(`[SKIP] Already logged conversation ${convo.id}`)
+        continue
+      }
+
+      // ✅ Email extraction
       let email = convo.metadata?.email
       if (!email) {
         email = extractEmailFromMessages(messages)
@@ -104,6 +113,7 @@ const run = async () => {
         continue
       }
 
+      // ✅ Lookup customer or lead
       const { data: customer } = await supabase
         .from('customers')
         .select('id')
@@ -121,12 +131,14 @@ const run = async () => {
 
       const summary = summarize(messages)
 
+      // ✅ Insert new interaction log
       const { error } = await supabase.from('interaction_logs').insert({
         customer_id: customer?.id ?? null,
         lead_id: lead?.id ?? null,
-        interaction_type: 'chatbot',
+        interaction_type: 'chatbase_summary',
         summary,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        chatbase_conversation_id: convo.id
       })
 
       if (error) {
