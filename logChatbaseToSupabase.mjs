@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import axios from 'axios'
 
-// ✅ Read secrets from GitHub Actions env
+// ✅ Environment config (set in GitHub secrets)
 const CHATBASE_API_KEY = process.env.CHATBASE_API_KEY
 const CHATBASE_BOT_ID = process.env.CHATBASE_BOT_ID
 const CHATBASE_API_URL = "https://www.chatbase.co/api/v1/get-conversations"
@@ -9,10 +9,10 @@ const CHATBASE_API_URL = "https://www.chatbase.co/api/v1/get-conversations"
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-// ✅ Init Supabase
+// ✅ Supabase client
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-// ✅ Debug: Confirm env variables are loaded
+// ✅ Debug logs
 console.log(`[DEBUG] CHATBASE_BOT_ID from env: ${CHATBASE_BOT_ID}`)
 console.log(`[DEBUG] SUPABASE_URL from env: ${SUPABASE_URL?.slice(0, 30)}...`)
 
@@ -43,16 +43,14 @@ const getConversations = async () => {
       }
     })
 
-const chats = response.data?.data
+    const chats = response.data?.data
+    if (!Array.isArray(chats)) {
+      console.error(`[ERROR] Unexpected response from Chatbase`, response.data)
+      return []
+    }
 
-if (!Array.isArray(chats)) {
-  console.error(`[ERROR] Unexpected response from Chatbase`, response.data)
-  return []
-}
-
-console.log(`[INFO] Retrieved ${chats.length} conversations`)
-return chats
-
+    console.log(`[INFO] Retrieved ${chats.length} conversations`)
+    return chats
   } catch (error) {
     console.error(`[ERROR] Chatbase request failed`)
     if (error.response) {
@@ -65,16 +63,19 @@ return chats
   }
 }
 
-const summarize = (messages) =>
-  messages.map((m) => m.content).join(' ').slice(0, 400)
+const summarize = (messages) => {
+  const contentList = messages
+    .map(m => (typeof m.content === 'string' ? m.content : ''))
+    .filter(Boolean)
+  return contentList.join(' ').slice(0, 400)
+}
 
 const extractEmailFromMessages = (messages) => {
   const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/
   for (const msg of messages) {
-    const match = msg.content?.match(emailRegex)
-    if (match) {
-      return match[0]
-    }
+    const content = typeof msg.content === 'string' ? msg.content : ''
+    const match = content.match(emailRegex)
+    if (match) return match[0]
   }
   return null
 }
@@ -83,54 +84,58 @@ const run = async () => {
   const conversations = await getConversations()
 
   for (const convo of conversations) {
-    const messages = convo.messages
-    if (!messages?.length) {
-      console.log(`[SKIP] Conversation missing messages`)
-      continue
-    }
-
-    let email = convo.metadata?.email
-    if (!email) {
-      email = extractEmailFromMessages(messages)
-      if (email) {
-        console.log(`[INFO] Extracted email from message: ${email}`)
+    try {
+      const messages = convo.messages
+      if (!messages?.length) {
+        console.log(`[SKIP] Conversation missing messages`)
+        continue
       }
-    }
 
-    if (!email) {
-      console.log(`[SKIP] No email found in metadata or messages`)
-      continue
-    }
+      let email = convo.metadata?.email
+      if (!email) {
+        email = extractEmailFromMessages(messages)
+        if (email) {
+          console.log(`[INFO] Extracted email from message: ${email}`)
+        }
+      }
 
-    const { data: customer } = await supabase
-      .from('customers')
-      .select('id')
-      .eq('email', email)
-      .maybeSingle()
+      if (!email) {
+        console.log(`[SKIP] No email found in metadata or messages`)
+        continue
+      }
 
-    const { data: lead } = !customer
-      ? await supabase.from('leads').select('id').eq('email', email).maybeSingle()
-      : { data: null }
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle()
 
-    if (!customer && !lead) {
-      console.log(`[SKIP] Email not found in customers or leads: ${email}`)
-      continue
-    }
+      const { data: lead } = !customer
+        ? await supabase.from('leads').select('id').eq('email', email).maybeSingle()
+        : { data: null }
 
-    const summary = summarize(messages)
+      if (!customer && !lead) {
+        console.log(`[SKIP] Email not found in customers or leads: ${email}`)
+        continue
+      }
 
-    const { error } = await supabase.from('interaction_logs').insert({
-      customer_id: customer?.id ?? null,
-      lead_id: lead?.id ?? null,
-      interaction_type: 'chatbot',
-      summary,
-      created_at: new Date().toISOString()
-    })
+      const summary = summarize(messages)
 
-    if (error) {
-      console.error(`[ERROR] Failed to insert interaction log for ${email}`, error)
-    } else {
-      console.log(`[✅] Logged interaction for ${email}`)
+      const { error } = await supabase.from('interaction_logs').insert({
+        customer_id: customer?.id ?? null,
+        lead_id: lead?.id ?? null,
+        interaction_type: 'chatbase_summary',
+        summary,
+        created_at: new Date().toISOString()
+      })
+
+      if (error) {
+        console.error(`[ERROR] Failed to insert interaction log for ${email}`, error)
+      } else {
+        console.log(`[✅] Logged interaction for ${email}`)
+      }
+    } catch (err) {
+      console.error(`[ERROR] Failed processing one conversation`, err)
     }
   }
 
