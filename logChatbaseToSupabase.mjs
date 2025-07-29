@@ -122,7 +122,7 @@ const run = async () => {
     const { error } = await supabase.from('interaction_logs').insert({
       customer_id: customer?.id ?? null,
       lead_id: lead?.id ?? null,
-      interaction_type: 'call',
+      interaction_type: 'chatbot',
       summary,
       created_at: new Date().toISOString()
     })
