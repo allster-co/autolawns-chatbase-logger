@@ -43,13 +43,16 @@ const getConversations = async () => {
       }
     })
 
-    if (!Array.isArray(response.data)) {
-      console.error(`[ERROR] Unexpected response from Chatbase`, response.data)
-      return []
-    }
+const chats = response.data?.data
 
-    console.log(`[INFO] Retrieved ${response.data.length} conversations`)
-    return response.data
+if (!Array.isArray(chats)) {
+  console.error(`[ERROR] Unexpected response from Chatbase`, response.data)
+  return []
+}
+
+console.log(`[INFO] Retrieved ${chats.length} conversations`)
+return chats
+
   } catch (error) {
     console.error(`[ERROR] Chatbase request failed`)
     if (error.response) {
