@@ -1,15 +1,16 @@
-name: Log Telnyx Calls to Supabase
+name: Log Chatbase to Supabase
 
 on:
   schedule:
-    - cron: '*/15 * * * *'  # Every 15 minutes
+    - cron: '0 * * * *' # Every hour
   workflow_dispatch:
 
 jobs:
-  log-calls:
+  log-conversations:
     runs-on: ubuntu-latest
     env:
-      TELNYX_API_KEY: ${{ secrets.TELNYX_API_KEY }}
+      CHATBASE_API_KEY: ${{ secrets.CHATBASE_API_KEY }}
+      CHATBASE_BOT_ID: ${{ secrets.CHATBASE_BOT_ID }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
@@ -19,4 +20,4 @@ jobs:
         with:
           node-version: '18'
       - run: npm install
-      - run: node logTelnyxToSupabase.mjs
+      - run: node logChatbaseToSupabase.mjs
