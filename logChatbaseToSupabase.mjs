@@ -20,8 +20,9 @@ const getConversations = async () => {
   const now = new Date()
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
 
-  const startISO = oneHourAgo.toISOString()
-  const endISO = now.toISOString()
+const formatDate = (date) => date.toISOString().split('T')[0]
+const startDate = formatDate(oneHourAgo)
+const endDate = formatDate(now)
 
   console.log(`[INFO] Fetching conversations from Chatbase`)
   console.log(`[INFO] Time window: ${startISO} → ${endISO}`)
