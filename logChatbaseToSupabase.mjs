@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import axios from 'axios'
 
-// ✅ Read secrets from GitHub Actions env (do not use dotenv in Actions)
+// ✅ Read secrets from GitHub Actions env
 const CHATBASE_API_KEY = process.env.CHATBASE_API_KEY
 const CHATBASE_BOT_ID = process.env.CHATBASE_BOT_ID
 const CHATBASE_API_URL = "https://www.chatbase.co/api/v1/get-conversations"
@@ -20,27 +20,27 @@ const getConversations = async () => {
   const now = new Date()
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
 
-const formatDate = (date) => date.toISOString().split('T')[0]
-const startDate = formatDate(oneHourAgo)
-const endDate = formatDate(now)
+  const formatDate = (date) => date.toISOString().split('T')[0]
+  const startDate = formatDate(oneHourAgo)
+  const endDate = formatDate(now)
 
   console.log(`[INFO] Fetching conversations from Chatbase`)
-  console.log(`[INFO] Time window: ${startISO} → ${endISO}`)
+  console.log(`[INFO] Time window: ${startDate} → ${endDate}`)
   console.log(`[INFO] Bot ID: ${CHATBASE_BOT_ID}`)
 
   try {
     const response = await axios.get(CHATBASE_API_URL, {
       headers: {
-        Authorization: `Bearer ${CHATBASE_API_KEY}`
+        Authorization: `Bearer ${CHATBASE_API_KEY}`,
+        accept: 'application/json',
       },
-params: {
-  chatbotId: CHATBASE_BOT_ID,
-  startDate,
-  endDate,
-  page: 1,
-  size: 5
-}
-
+      params: {
+        chatbotId: CHATBASE_BOT_ID,
+        startDate,
+        endDate,
+        page: 1,
+        size: 50
+      }
     })
 
     if (!Array.isArray(response.data)) {
