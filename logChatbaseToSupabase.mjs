@@ -32,11 +32,14 @@ const getConversations = async () => {
       headers: {
         Authorization: `Bearer ${CHATBASE_API_KEY}`
       },
-      params: {
-        bot_id: CHATBASE_BOT_ID,
-        start_date: startISO,
-        end_date: endISO
-      }
+params: {
+  chatbotId: CHATBASE_BOT_ID,
+  startDate: startISO,
+  endDate: endISO,
+  page: 1,
+  size: 50 // or whatever you want to limit to
+}
+
     })
 
     if (!Array.isArray(response.data)) {
