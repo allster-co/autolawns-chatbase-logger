@@ -59,11 +59,15 @@ const getConversations = async () => {
   }
 }
 
-const summarize = (messages) => {
-  const contentList = messages
-    .map(m => (typeof m.content === 'string' ? m.content : ''))
+const stringifyConversation = (messages) => {
+  return messages
+    .map((m) => {
+      const content = typeof m.content === 'string' ? m.content.trim() : ''
+      const sender = m.sender || m.role || 'unknown'
+      return `${sender}: ${content}`
+    })
     .filter(Boolean)
-  return contentList.join(' ').slice(0, 400)
+    .join('\n')
 }
 
 const extractEmailFromMessages = (messages) => {
@@ -129,7 +133,7 @@ const run = async () => {
         continue
       }
 
-      const summary = summarize(messages)
+const summary = stringifyConversation(messages)
 
       // ✅ Insert new interaction log
       const { error } = await supabase.from('interaction_logs').insert({
