@@ -65,15 +65,37 @@ const getConversations = async () => {
 const summarize = (messages) =>
   messages.map((m) => m.content).join(' ').slice(0, 400)
 
+const extractEmailFromMessages = (messages) => {
+  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/
+  for (const msg of messages) {
+    const match = msg.content?.match(emailRegex)
+    if (match) {
+      return match[0]
+    }
+  }
+  return null
+}
+
 const run = async () => {
   const conversations = await getConversations()
 
   for (const convo of conversations) {
-    const email = convo.metadata?.email
     const messages = convo.messages
+    if (!messages?.length) {
+      console.log(`[SKIP] Conversation missing messages`)
+      continue
+    }
 
-    if (!email || !messages?.length) {
-      console.log(`[SKIP] Conversation missing email or messages`)
+    let email = convo.metadata?.email
+    if (!email) {
+      email = extractEmailFromMessages(messages)
+      if (email) {
+        console.log(`[INFO] Extracted email from message: ${email}`)
+      }
+    }
+
+    if (!email) {
+      console.log(`[SKIP] No email found in metadata or messages`)
       continue
     }
 
@@ -97,7 +119,7 @@ const run = async () => {
     const { error } = await supabase.from('interaction_logs').insert({
       customer_id: customer?.id ?? null,
       lead_id: lead?.id ?? null,
-      interaction_type: 'chatbase_summary',
+      interaction_type: 'call',
       summary,
       created_at: new Date().toISOString()
     })
