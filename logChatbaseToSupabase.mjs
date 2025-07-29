@@ -35,10 +35,10 @@ const endDate = formatDate(now)
       },
 params: {
   chatbotId: CHATBASE_BOT_ID,
-  startDate: startISO,
-  endDate: endISO,
+  startDate,
+  endDate,
   page: 1,
-  size: 50 // or whatever you want to limit to
+  size: 5
 }
 
     })
