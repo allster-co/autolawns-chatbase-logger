@@ -1,10 +1,5 @@
 name: Log Chatbase to Supabase
 
-on:
-  schedule:
-    - cron: '0 * * * *' # Every hour
-  workflow_dispatch:
-
 jobs:
   log-conversations:
     runs-on: ubuntu-latest
